@@ -1,4 +1,4 @@
-n you# Pokémon Team Planner
+# Pokémon Team Planner
 A non-competitive team planner tool for mainline Pokémon games.
 
 Current version supports all games.
