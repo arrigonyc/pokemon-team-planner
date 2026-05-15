@@ -372,14 +372,49 @@ function populateTeam( container ) {
     });
     buttonContainer.append( button );
 
-    // Create sprite style selector (only if game has retro sprites available)
+    // Create quick filters row (Version, Evolution, Type, Sprite Style)
+    const quickFiltersRow = document.createElement( "div" );
+    quickFiltersRow.classList.add( "team__quick-filters" );
+    
+    // Version filter
+    const versionDisabled = currentVersions.length === 0;
+    if ( !versionDisabled ) {
+        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, true, false );
+        const both_text = currentVersions.length > 2 ? "All Versions" : "Both Versions";
+        versionDropdown.append( createCheckbox( "version", both_text, "both" ) );
+        gameData[ currentGame ].versions.forEach( version => {
+            versionDropdown.append( createCheckbox( "version", version.name, version.slug ) );
+        });
+        if ( gameData[ currentGame ].transfer ) {
+            versionDropdown.append( createCheckbox( "version", "Transfer-Only", "transfer_" + currentGame ) );
+        }
+    }
+    
+    // Evolution filter
+    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, true, false );
+    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe" ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe" ) );
+    if ( gameData[ currentGame ].mega ) {
+        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega" ) );
+    }
+    if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
+    
+    // Type filter
+    const types = Object.keys( getCurrentTypeData() );
+    const typeDropdown = createQuickFilter( quickFiltersRow, "type", "Type", true, true, false );
+    typeDropdown.classList.add( "filter__dropdown-menu_3col" );
+    types.forEach( value => {
+        typeDropdown.append( createCheckbox( "type", capitalize( value ), value ) );
+    });
+    
+    // Sprite style selector (only if game has retro sprites available)
     const spriteOptions = getSpriteStyleOptions();
     if ( spriteOptions.length > 1 ) {
         const spriteContainer = document.createElement( "div" );
         spriteContainer.classList.add( "team__sprite-selector" );
         
         const spriteLabel = document.createElement( "label" );
-        spriteLabel.innerHTML = "Sprite Style:";
+        spriteLabel.innerHTML = "Sprites";
         spriteLabel.setAttribute( "for", "sprite-style-select" );
         spriteLabel.classList.add( "team__sprite-label" );
         
@@ -400,8 +435,52 @@ function populateTeam( container ) {
         
         spriteSelect.addEventListener( "change", onSpriteStyleChange );
         spriteContainer.append( spriteLabel, spriteSelect );
-        buttonContainer.append( spriteContainer );
+        quickFiltersRow.append( spriteContainer );
     }
+    
+    buttonContainer.append( quickFiltersRow );
+}
+
+/**
+ * Creates a quick filter for the team buttons row.
+ * @param {HTMLElement} container
+ * @param {string} type
+ * @param {string} name
+ * @param {boolean} inclSelectAll
+ * @param {boolean} selectAll
+ * @param {boolean} disabled
+ * @returns {HTMLOListElement} dropdown
+ */
+function createQuickFilter( container, type, name, inclSelectAll = true, selectAll = true, disabled = false ) {
+    const dropdown = document.createElement( "ol" );
+    dropdown.classList.add( "filter__dropdown-menu" );
+    if ( inclSelectAll ) dropdown.append( createCheckbox( type, "Select All", "all", selectAll ) );
+
+    const div = document.createElement( "div" );
+    div.dataset.type = type;
+    div.classList.add( "filter", "filter_quick" );
+
+    const label = document.createElement( "label" );
+    label.classList.add( "filter__name" );
+    label.setAttribute( "for", type + "-filter" );
+    label.innerHTML = name;
+
+    const button = document.createElement( "button" );
+    button.classList.add( "filter__button" );
+    button.id = type + "-filter";
+    if ( !disabled ) {
+        button.innerHTML = selectAll ? "All Selected" : "None Selected";
+        button.addEventListener( "click", expandDropdown );
+        div.classList.add( "filter_enabled" );
+    } else {
+        button.innerHTML = "N/A";
+        div.classList.add( "filter_disabled" );
+    }
+
+    container.append( div );
+    div.append( label, button, dropdown );
+
+    return dropdown;
 }
 
 /**
@@ -1255,41 +1334,17 @@ function populateFilters() {
     filters.append( divScrollbox );
     // Search
     createSearchBar( divScrollbox );
-    // Type
-    var type_dropdown = createFilter( divScrollbox, "type", "Type" );
-    type_dropdown.classList.add( "filter__dropdown-menu_3col" );
     // Exclude Type
     var dropdown = createFilter( divScrollbox, "exclude-type", "Exclude Type", true, false );
     dropdown.classList.add( "filter__dropdown-menu_3col" );
     types.forEach( value => {
-        type_dropdown.append( createCheckbox( "type", capitalize( value ), value ) );
         dropdown.append( createCheckbox( "exclude-type", capitalize( value ), value, false ) );
     });
-    // Evolution
-    var dropdown = createFilter( divScrollbox, "evolution", "Evolution" );
-    dropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe" ) );
-    dropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe" ) );
-    if ( gameData[ currentGame ].mega ) dropdown.append(
-        createCheckbox( "evolution", "Mega Evolved", "mega" )
-    );
     // Generation
     dropdown = createFilter( divScrollbox, "gen", "Generation" );
     if ( gameData[ currentGame ].gen > 6 ) dropdown.classList.add( "filter__dropdown-menu_2col" );
     for ( let i = 1; i <= gameData[ currentGame ].gen; i++ ) {
         dropdown.append( createCheckbox( "gen", "Generation " + toRoman( i ), i ) );
-    }
-    // Version
-    const disabled = currentVersions.length === 0;
-    dropdown = createFilter( divScrollbox, "version", "Version", true, true, disabled );
-    if ( !disabled ) {
-        const both_text = currentVersions.length > 2 ? "All Versions" : "Both Versions";
-        dropdown.append( createCheckbox( "version", both_text, "both" ) );
-        gameData[ currentGame ].versions.forEach( version => {
-            dropdown.append( createCheckbox( "version", version.name, version.slug ) );
-        });
-        if ( gameData[ currentGame ].transfer ) {
-            dropdown.append( createCheckbox( "version", "Transfer-Only", "transfer_" + currentGame ) );
-        }
     }
     // Category
     dropdown = createFilter( divScrollbox, "tag", "Tag" );
