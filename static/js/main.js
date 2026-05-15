@@ -163,7 +163,104 @@ function getCurrentTypeData() {
 const BASE_IMG = IMG_PATH + "pokemon/";
 const SV_BASE_IMG = IMG_PATH + "sv-pokemon/";
 const UNKNOWN_IMG = BASE_IMG + "0000_000_uk_n.png";
-const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png"
+const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png";
+
+// Sprite style configuration
+var currentSpriteStyle = "home"; // Default to HOME renders
+
+// Map game hashes to their available sprite folders
+const GAME_SPRITE_FOLDERS = {
+    "rby": [ "red-blue", "yellow", "green" ],
+    "gsc": [ "gold", "silver", "crystal" ],
+    "rse": [ "ruby-sapphire", "emerald" ],
+    "frlg": [ "firered-leafgreen" ],
+    "dppt": [ "diamond-pearl", "platinum" ],
+    "hgss": [ "heartgold-soulsilver" ],
+    "bw": [ "black-white" ],
+    "b2w2": [ "black-white" ]
+};
+
+// Map form_name to sprite filename suffix for retro sprites
+const FORM_SUFFIX_MAP = {
+    // Unown forms
+    "A": "-a", "B": "-b", "C": "-c", "D": "-d", "E": "-e", "F": "-f", "G": "-g",
+    "H": "-h", "I": "-i", "J": "-j", "K": "-k", "L": "-l", "M": "-m", "N": "-n",
+    "O": "-o", "P": "-p", "Q": "-q", "R": "-r", "S": "-s", "T": "-t", "U": "-u",
+    "V": "-v", "W": "-w", "X": "-x", "Y": "-y", "Z": "-z",
+    "Exclamation Point": "-exclamation", "Question Mark": "-question",
+    // Deoxys forms
+    "Normal Forme": "-normal", "Attack Forme": "-attack", "Defense Forme": "-defense", "Speed Forme": "-speed",
+    // Castform forms
+    "Sunny Form": "-sunny", "Rainy Form": "-rainy", "Snowy Form": "-snowy",
+    // Burmy/Wormadam forms
+    "Plant Cloak": "-plant", "Sandy Cloak": "-sandy", "Trash Cloak": "-trash",
+    // Cherrim forms
+    "Overcast Form": "-overcast", "Sunshine Form": "-sunshine",
+    // Shellos/Gastrodon forms
+    "West Sea": "-west", "East Sea": "-east",
+    // Rotom forms
+    "Heat Rotom": "-heat", "Wash Rotom": "-wash", "Frost Rotom": "-frost", "Fan Rotom": "-fan", "Mow Rotom": "-mow",
+    // Giratina forms
+    "Altered Forme": "-altered", "Origin Forme": "-origin",
+    // Shaymin forms
+    "Land Forme": "-land", "Sky Forme": "-sky",
+    // Basculin forms
+    "Red-Striped Form": "-red-striped", "Blue-Striped Form": "-blue-striped", "White-Striped Form": "-white-striped",
+    // Darmanitan forms
+    "Standard Mode": "", "Zen Mode": "-zen",
+    // Deerling/Sawsbuck forms
+    "Spring Form": "-spring", "Summer Form": "-summer", "Autumn Form": "-autumn", "Winter Form": "-winter",
+    // Tornadus/Thundurus/Landorus forms
+    "Incarnate Forme": "-incarnate", "Therian Forme": "-therian",
+    // Kyurem forms
+    "Black Kyurem": "-black", "White Kyurem": "-white",
+    // Keldeo forms
+    "Ordinary Form": "-ordinary", "Resolute Form": "-resolute",
+    // Meloetta forms
+    "Aria Forme": "-aria", "Pirouette Forme": "-pirouette"
+};
+
+/**
+ * Gets available sprite style options for the current game.
+ * @returns {Array} Array of { id, label, path, hasBack, hasShiny, hasFemale } objects
+ */
+function getSpriteStyleOptions() {
+    const options = [
+        { id: "home", label: "HOME Renders", path: "", hasBack: false, hasShiny: true, hasFemale: true, isHome: true }
+    ];
+    
+    const folders = GAME_SPRITE_FOLDERS[ currentGame ];
+    if ( !folders ) return options;
+    
+    folders.forEach( folder => {
+        const basePath = folder + "/";
+        const label = folder.split( "-" ).map( s => capitalize( s ) ).join( " " );
+        
+        // Add front sprite option
+        options.push({
+            id: folder,
+            label: label,
+            path: basePath,
+            hasBack: false,
+            hasShiny: true,
+            hasFemale: [ "diamond-pearl", "platinum", "heartgold-soulsilver", "black-white" ].includes( folder ),
+            isHome: false
+        });
+        
+        // Add back sprite option
+        options.push({
+            id: folder + "-back",
+            label: label + " (Back)",
+            path: basePath + "back/",
+            hasBack: true,
+            hasShiny: true,
+            hasFemale: [ "diamond-pearl", "platinum", "heartgold-soulsilver", "black-white" ].includes( folder ),
+            isHome: false
+        });
+    });
+    
+    return options;
+}
 
 /**
  * Populates the page with empty team slots.
@@ -274,6 +371,37 @@ function populateTeam( container ) {
         });
     });
     buttonContainer.append( button );
+
+    // Create sprite style selector (only if game has retro sprites available)
+    const spriteOptions = getSpriteStyleOptions();
+    if ( spriteOptions.length > 1 ) {
+        const spriteContainer = document.createElement( "div" );
+        spriteContainer.classList.add( "team__sprite-selector" );
+        
+        const spriteLabel = document.createElement( "label" );
+        spriteLabel.innerHTML = "Sprite Style:";
+        spriteLabel.setAttribute( "for", "sprite-style-select" );
+        spriteLabel.classList.add( "team__sprite-label" );
+        
+        const spriteSelect = document.createElement( "select" );
+        spriteSelect.id = "sprite-style-select";
+        spriteSelect.classList.add( "team__sprite-select" );
+        
+        spriteOptions.forEach( option => {
+            const opt = document.createElement( "option" );
+            opt.value = option.id;
+            opt.innerHTML = option.label;
+            opt.dataset.path = option.path;
+            opt.dataset.isHome = option.isHome;
+            opt.dataset.hasShiny = option.hasShiny;
+            opt.dataset.hasFemale = option.hasFemale;
+            spriteSelect.append( opt );
+        });
+        
+        spriteSelect.addEventListener( "change", onSpriteStyleChange );
+        spriteContainer.append( spriteLabel, spriteSelect );
+        buttonContainer.append( spriteContainer );
+    }
 }
 
 /**
@@ -481,18 +609,108 @@ function populateTeamSlot( event_or_slug ) {
 }
 
 /**
- * Returns the URL corresponding to a Pokémon's Pokémon HOME render.
+ * Returns the URL corresponding to a Pokémon's sprite based on current style.
  * @param {Object} pokemon
  * @param {boolean} gmax whether to retrieve the Gigantamax render
+ * @param {Object} options optional overrides { isShiny, isFemale, spriteStyle }
  * @returns {string} url
  */
-function getPokemonRenderUrl( pokemon, gmax = false ) {
-    return BASE_IMG + [
-        String( pokemon.base_id ).padStart( 4, "0" ),
-        String( pokemon.form_id ).padStart( 3, "0" ),
-        ( gmax && pokemon.gender.length > 1 ) ? "mf" : pokemon.gender[ 0 ],
-        gmax ? "g" : "n"
-    ].join( "_" ) + ".png";
+function getPokemonRenderUrl( pokemon, gmax = false, options = {} ) {
+    const spriteStyle = options.spriteStyle || currentSpriteStyle;
+    const isShiny = options.isShiny || false;
+    const isFemale = options.isFemale || false;
+    
+    // Use HOME renders for "home" style or if no retro sprites available
+    if ( spriteStyle === "home" ) {
+        return BASE_IMG + [
+            String( pokemon.base_id ).padStart( 4, "0" ),
+            String( pokemon.form_id ).padStart( 3, "0" ),
+            ( gmax && pokemon.gender.length > 1 ) ? "mf" : pokemon.gender[ 0 ],
+            gmax ? "g" : "n"
+        ].join( "_" ) + ".png";
+    }
+    
+    // Get the sprite style option to determine path
+    const spriteOptions = getSpriteStyleOptions();
+    const styleOption = spriteOptions.find( opt => opt.id === spriteStyle );
+    if ( !styleOption ) {
+        // Fallback to HOME renders
+        return getPokemonRenderUrl( pokemon, gmax, { ...options, spriteStyle: "home" } );
+    }
+    
+    // Build retro sprite path
+    let path = BASE_IMG + styleOption.path;
+    
+    // Add shiny subfolder if applicable
+    if ( isShiny && styleOption.hasShiny ) {
+        path += "shiny/";
+    }
+    
+    // Add female subfolder if applicable
+    if ( isFemale && styleOption.hasFemale ) {
+        path += "female/";
+    }
+    
+    // Build filename: base_id + form suffix + .png
+    let filename = String( pokemon.base_id );
+    
+    // Add form suffix if applicable (for forms like Deoxys, Unown, etc.)
+    if ( pokemon.form_id > 0 && pokemon.form_name ) {
+        const suffix = FORM_SUFFIX_MAP[ pokemon.form_name ];
+        if ( suffix !== undefined ) {
+            filename += suffix;
+        }
+    }
+    
+    filename += ".png";
+    
+    return path + filename;
+}
+
+/**
+ * Handler for sprite style dropdown change.
+ * @param {Event} event
+ */
+function onSpriteStyleChange( event ) {
+    currentSpriteStyle = event.target.value;
+    refreshAllSprites();
+}
+
+/**
+ * Refreshes all Pokemon sprites on the page to use the current sprite style.
+ */
+function refreshAllSprites() {
+    // Refresh team slot sprites
+    document.querySelectorAll( ".slot_populated" ).forEach( slot => {
+        const slug = slot.dataset.slug;
+        const gmax = slug.endsWith( "-gmax" );
+        const slug_nogmax = gmax ? slug.substring( 0, slug.length - "-gmax".length ) : slug;
+        const pokemon = pokemonData[ slug_nogmax ];
+        
+        if ( !pokemon ) return;
+        
+        const img = slot.querySelector( ".slot__pokemon-render" );
+        const shinyButton = slot.querySelector( ".slot__toggle_regular, .slot__toggle_shiny" );
+        const genderButton = slot.querySelector( ".slot__toggle_male, .slot__toggle_female" );
+        
+        const isShiny = shinyButton && shinyButton.classList.contains( "slot__toggle_shiny" );
+        const isFemale = genderButton && genderButton.classList.contains( "slot__toggle_male" );
+        
+        img.setAttribute( "src", getPokemonRenderUrl( pokemon, gmax, { isShiny, isFemale } ) );
+    });
+    
+    // Refresh Pokedex entry sprites
+    document.querySelectorAll( ".pokedex-entry" ).forEach( li => {
+        const slug = li.dataset.slug;
+        const gmax = slug.endsWith( "-gmax" );
+        const slug_nogmax = gmax ? slug.substring( 0, slug.length - "-gmax".length ) : slug;
+        const pokemon = pokemonData[ slug_nogmax ];
+        
+        if ( !pokemon ) return;
+        
+        const img = li.querySelector( ".pokedex-entry__thumb" );
+        img.setAttribute( "src", getPokemonRenderUrl( pokemon, gmax ) );
+    });
 }
 
 /**
@@ -505,24 +723,34 @@ function toggleGender( event_or_slug ) {
         : event_or_slug.currentTarget.closest( "li[data-slug]" );
 
     const slug = slot.dataset.slug;
-    if ( pokemonData[ slug ].gender.length !== 2 ) return;
+    const gmax = slug.endsWith( "-gmax" );
+    const slug_nogmax = gmax ? slug.substring( 0, slug.length - "-gmax".length ) : slug;
+    const pokemon = pokemonData[ slug_nogmax ];
+    
+    if ( !pokemon || pokemon.gender.length !== 2 ) return;
 
     const button = slot.querySelector( ".slot__toggle_male, .slot__toggle_female" );
-    const img = slot.querySelector( ".slot__pokemon-render" );
-    var src = img.getAttribute( "src" );
-    src = src.replace( /[fm]d/g, ( m ) => {
-        return { md: "fd", fd: "md" }[ m ]
-    });
-    img.setAttribute( "src", src );
-    if ( src.includes( "fd" ) ) {
-        button.classList.remove( "slot__toggle_male" );
-        button.classList.add( "slot__toggle_female" );
-        button.innerHTML = "&female;";
-    } else {
+    const isCurrentlyFemale = button.classList.contains( "slot__toggle_female" );
+    
+    if ( isCurrentlyFemale ) {
+        // Switch to male
         button.classList.add( "slot__toggle_male" );
         button.classList.remove( "slot__toggle_female" );
         button.innerHTML = "&male;";
+    } else {
+        // Switch to female
+        button.classList.remove( "slot__toggle_male" );
+        button.classList.add( "slot__toggle_female" );
+        button.innerHTML = "&female;";
     }
+    
+    // Use the new sprite system to get the correct URL
+    const shinyButton = slot.querySelector( ".slot__toggle_regular, .slot__toggle_shiny" );
+    const isShiny = shinyButton && shinyButton.classList.contains( "slot__toggle_shiny" );
+    const isFemale = !isCurrentlyFemale; // toggled state (now male view shows female sprite)
+    
+    const img = slot.querySelector( ".slot__pokemon-render" );
+    img.setAttribute( "src", getPokemonRenderUrl( pokemon, gmax, { isShiny, isFemale } ) );
 }
 
 /**
@@ -534,20 +762,31 @@ function toggleShiny( event_or_slug ) {
         ? document.querySelector( ".slot[data-slug='" + slug + "']" )
         : event_or_slug.currentTarget.closest( ".slot[data-slug]" );
 
-    const img = slot.querySelector( ".slot__pokemon-render" );
-    var src = img.getAttribute( "src" ).split("/");
-    var dir = "pokemon";
     const button = slot.querySelector( ".slot__toggle_regular, .slot__toggle_shiny" );
-    if ( button.classList.contains( "slot__toggle_shiny" ) ) {
+    const isCurrentlyShiny = button.classList.contains( "slot__toggle_shiny" );
+    
+    if ( isCurrentlyShiny ) {
         button.classList.add( "slot__toggle_regular" );
         button.classList.remove( "slot__toggle_shiny" );
     } else {
         button.classList.add( "slot__toggle_shiny" );
         button.classList.remove( "slot__toggle_regular" );
-        dir = "shiny-pokemon";
     }
-    src = [ ...src.slice( 0, src.length - 2 ), dir, src[ src.length - 1 ] ].join( "/" );
-    img.setAttribute( "src", src );
+    
+    // Use the new sprite system to get the correct URL
+    const slug = slot.dataset.slug;
+    const gmax = slug.endsWith( "-gmax" );
+    const slug_nogmax = gmax ? slug.substring( 0, slug.length - "-gmax".length ) : slug;
+    const pokemon = pokemonData[ slug_nogmax ];
+    
+    if ( !pokemon ) return;
+    
+    const genderButton = slot.querySelector( ".slot__toggle_male, .slot__toggle_female" );
+    const isFemale = genderButton && genderButton.classList.contains( "slot__toggle_male" );
+    const isShiny = !isCurrentlyShiny; // toggled state
+    
+    const img = slot.querySelector( ".slot__pokemon-render" );
+    img.setAttribute( "src", getPokemonRenderUrl( pokemon, gmax, { isShiny, isFemale } ) );
 }
 
 /**

@@ -1,0 +1,9 @@
+{
+  "name": "pokemon-team-planner",
+  "version": "1.0.0",
+  "description": "A team planner tool for the mainline Pokémon games",
+  "scripts": {
+    "dev": "npx serve -l 3000",
+    "start": "npx serve -l 3000"
+  }
+}
