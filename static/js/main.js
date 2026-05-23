@@ -482,11 +482,6 @@ function populateTeam( container ) {
     }
     
     buttonContainer.append( quickFiltersRow );
-    
-    // Update button text based on actual checkbox state and trigger initial filter
-    updateQuickFilterButtonText( "version" );
-    updateQuickFilterButtonText( "evolution" );
-    filterDex();
 }
 
 /**
@@ -517,7 +512,6 @@ function createQuickFilter( container, type, name, inclSelectAll = true, selectA
     button.classList.add( "filter__button" );
     button.id = type + "-filter";
     if ( !disabled ) {
-        // Button text will be updated after checkboxes are added
         button.innerHTML = selectAll ? "All Selected" : "None Selected";
         button.addEventListener( "click", expandDropdown );
         div.classList.add( "filter_enabled" );
@@ -530,31 +524,6 @@ function createQuickFilter( container, type, name, inclSelectAll = true, selectA
     div.append( label, button, dropdown );
 
     return dropdown;
-}
-
-/**
- * Updates a quick filter button text based on checked checkboxes.
- * @param {string} type - the filter type (e.g., "evolution", "version")
- */
-function updateQuickFilterButtonText( type ) {
-    const button = document.getElementById( type + "-filter" );
-    if ( !button ) return;
-    
-    const checkboxes = document.querySelectorAll( `input[name='${type}']` );
-    const checkedOptions = Array.from( checkboxes )
-        .filter( cb => cb.checked && cb.value !== "all" );
-    const allOptions = Array.from( checkboxes )
-        .filter( cb => cb.value !== "all" );
-    
-    if ( checkedOptions.length === allOptions.length ) {
-        button.innerHTML = "All Selected";
-    } else if ( checkedOptions.length === 0 ) {
-        button.innerHTML = "None Selected";
-    } else if ( checkedOptions.length === 1 ) {
-        button.innerHTML = "1 Selected";
-    } else {
-        button.innerHTML = String( checkedOptions.length ) + " Selected";
-    }
 }
 
 /**
