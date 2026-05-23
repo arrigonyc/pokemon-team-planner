@@ -407,8 +407,6 @@ function populateTeam( container ) {
         evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", false ) );
     }
     if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
-    // Update button text to reflect "1 Selected"
-    document.querySelector( "#evolution-filter" ).innerHTML = "1 Selected";
     
     // Type filter
     const types = Object.keys( getCurrentTypeData() );
