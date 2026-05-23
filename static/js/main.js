@@ -58,6 +58,7 @@ function buildPage() {
     populateTeraPicker( document.querySelector( ".slot__toggle-container" ) );
     populateDexes( document.querySelector( ".tail" ) );
     populateFilters();
+    filterDex();  // Apply initial filter settings from URL hash
     slugs.forEach( slug => populateTeamSlot( slug ) );
     window.onscroll = shrinkHead;
 }
@@ -409,9 +410,10 @@ function populateTeam( container ) {
     if ( !versionDisabled ) {
         const versionSetting = hashSettings.version ? hashSettings.version.split( "," ) : null;
         const versionSelectAll = !versionSetting;
-        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, versionSelectAll, false );
+        const versionSelectedCount = versionSetting ? versionSetting.length : null;
+        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, versionSelectAll, false, versionSelectedCount );
         const both_text = currentVersions.length > 2 ? "All Versions" : "Both Versions";
-        versionDropdown.append( createCheckbox( "version", both_text, "both", versionSelectAll ) );
+        versionDropdown.append( createCheckbox( "version", both_text, "both", versionSelectAll || versionSetting?.includes( "both" ) ) );
         gameData[ currentGame ].versions.forEach( version => {
             versionDropdown.append( createCheckbox( "version", version.name, version.slug, versionSelectAll || versionSetting?.includes( version.slug ) ) );
         });
@@ -424,7 +426,8 @@ function populateTeam( container ) {
     // Evolution filter
     const evolutionSetting = hashSettings.evolution ? hashSettings.evolution.split( "," ) : null;
     const evolutionSelectAll = !evolutionSetting;
-    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, evolutionSelectAll, false );
+    const evolutionSelectedCount = evolutionSetting ? evolutionSetting.length : null;
+    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, evolutionSelectAll, false, evolutionSelectedCount );
     evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", evolutionSelectAll || evolutionSetting?.includes( "nfe" ) ) );
     evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", evolutionSelectAll || evolutionSetting?.includes( "fe" ) ) );
     if ( gameData[ currentGame ].mega ) {
@@ -492,9 +495,10 @@ function populateTeam( container ) {
  * @param {boolean} inclSelectAll
  * @param {boolean} selectAll
  * @param {boolean} disabled
+ * @param {number|null} selectedCount - number of selected items (for button text)
  * @returns {HTMLOListElement} dropdown
  */
-function createQuickFilter( container, type, name, inclSelectAll = true, selectAll = true, disabled = false ) {
+function createQuickFilter( container, type, name, inclSelectAll = true, selectAll = true, disabled = false, selectedCount = null ) {
     const dropdown = document.createElement( "ol" );
     dropdown.classList.add( "filter__dropdown-menu" );
     if ( inclSelectAll ) dropdown.append( createCheckbox( type, "Select All", "all", selectAll ) );
@@ -512,7 +516,14 @@ function createQuickFilter( container, type, name, inclSelectAll = true, selectA
     button.classList.add( "filter__button" );
     button.id = type + "-filter";
     if ( !disabled ) {
-        button.innerHTML = selectAll ? "All Selected" : "None Selected";
+        // Determine button text based on selection state
+        if ( selectAll ) {
+            button.innerHTML = "All Selected";
+        } else if ( selectedCount !== null && selectedCount > 0 ) {
+            button.innerHTML = selectedCount === 1 ? "1 Selected" : selectedCount + " Selected";
+        } else {
+            button.innerHTML = "None Selected";
+        }
         button.addEventListener( "click", expandDropdown );
         div.classList.add( "filter_enabled" );
     } else {
@@ -2139,12 +2150,7 @@ function updateTeamAnalysis() {
 function updateTeamHash() {
     const parts = [ currentGame ];
     
-    // Add Pokemon slugs
-    document.querySelectorAll( ".slot_populated" ).forEach( li => {
-        parts.push( li.dataset.slug );
-    });
-    
-    // Add settings (sprites, evolution, version) if not default
+    // Add settings FIRST (sprites, evolution, version) if not default
     if ( currentSpriteStyle && currentSpriteStyle !== "home" ) {
         parts.push( "sprites:" + currentSpriteStyle );
     }
@@ -2161,17 +2167,22 @@ function updateTeamHash() {
         parts.push( "evolution:" + checkedEvolution.join( "," ) );
     }
     
-    // Add version setting if not all selected
+    // Add version setting if not all selected (include "both" as a storable value)
     const versionCheckboxes = document.querySelectorAll( "input[name='version']" );
     const checkedVersions = Array.from( versionCheckboxes )
-        .filter( cb => cb.checked && cb.value !== "all" && cb.value !== "both" )
+        .filter( cb => cb.checked && cb.value !== "all" )
         .map( cb => cb.value );
     const allVersionOptions = Array.from( versionCheckboxes )
-        .filter( cb => cb.value !== "all" && cb.value !== "both" )
+        .filter( cb => cb.value !== "all" )
         .map( cb => cb.value );
     if ( checkedVersions.length > 0 && checkedVersions.length < allVersionOptions.length ) {
         parts.push( "version:" + checkedVersions.join( "," ) );
     }
+    
+    // Add Pokemon slugs AFTER settings
+    document.querySelectorAll( ".slot_populated" ).forEach( li => {
+        parts.push( li.dataset.slug );
+    });
     
     const hash = parts.join( "+" );
     if ( window.history.replaceState ) {
