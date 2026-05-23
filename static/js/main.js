@@ -169,12 +169,30 @@ const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png";
 var currentSpriteStyle = "home"; // Default to HOME renders
 
 /**
+ * Gets URL search params, handling both standard format (?foo=bar#hash) 
+ * and hash-first format (#hash?foo=bar).
+ * @returns {URLSearchParams}
+ */
+function getUrlParams() {
+    // First try standard location.search
+    if ( window.location.search ) {
+        return new URLSearchParams( window.location.search );
+    }
+    // Check if query params are embedded in the hash (e.g., #rby?sprites=red-blue)
+    const hash = window.location.hash;
+    const queryIndex = hash.indexOf( "?" );
+    if ( queryIndex !== -1 ) {
+        return new URLSearchParams( hash.substring( queryIndex ) );
+    }
+    return new URLSearchParams();
+}
+
+/**
  * Gets the sprite style from URL query parameter.
  * @returns {string|null} sprite style or null if not specified
  */
 function getSpriteStyleFromUrl() {
-    const params = new URLSearchParams( window.location.search );
-    return params.get( "sprites" );
+    return getUrlParams().get( "sprites" );
 }
 
 /**
@@ -183,8 +201,7 @@ function getSpriteStyleFromUrl() {
  * @returns {string|null} filter value or null if not specified
  */
 function getFilterFromUrl( filterName ) {
-    const params = new URLSearchParams( window.location.search );
-    return params.get( filterName );
+    return getUrlParams().get( filterName );
 }
 
 // Map game hashes to their available sprite folders
