@@ -177,6 +177,16 @@ function getSpriteStyleFromUrl() {
     return params.get( "sprites" );
 }
 
+/**
+ * Gets a filter value from URL query parameter.
+ * @param {string} filterName - the name of the filter (e.g., "evolution")
+ * @returns {string|null} filter value or null if not specified
+ */
+function getFilterFromUrl( filterName ) {
+    const params = new URLSearchParams( window.location.search );
+    return params.get( filterName );
+}
+
 // Map game hashes to their available sprite folders
 const GAME_SPRITE_FOLDERS = {
     "rby": [ "red-blue", "yellow", "green" ],
@@ -399,12 +409,14 @@ function populateTeam( container ) {
         }
     }
     
-    // Evolution filter (default to Fully Evolved only)
-    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, false, false );
-    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", false ) );
-    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", true ) );
+    // Evolution filter
+    const evolutionParam = getFilterFromUrl( "evolution" );
+    const evolutionSelectAll = !evolutionParam; // Select all if no URL param
+    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, evolutionSelectAll, false );
+    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", evolutionSelectAll || evolutionParam === "nfe" ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", evolutionSelectAll || evolutionParam === "fe" ) );
     if ( gameData[ currentGame ].mega ) {
-        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", false ) );
+        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", evolutionSelectAll || evolutionParam === "mega" ) );
     }
     if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
     
