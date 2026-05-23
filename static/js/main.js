@@ -58,6 +58,7 @@ function buildPage() {
     populateTeraPicker( document.querySelector( ".slot__toggle-container" ) );
     populateDexes( document.querySelector( ".tail" ) );
     populateFilters();
+    filterDex();  // Apply initial filter settings from URL hash
     slugs.forEach( slug => populateTeamSlot( slug ) );
     window.onscroll = shrinkHead;
 }
@@ -167,6 +168,34 @@ const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png";
 
 // Sprite style configuration
 var currentSpriteStyle = "home"; // Default to HOME renders
+
+// URL hash settings (parsed from hash, e.g., sprites:red-blue, evolution:fe)
+var hashSettings = {};
+
+/**
+ * Parses settings from the URL hash. Settings use format "key:value".
+ * @param {Array} hashParts - array of hash segments split by "+"
+ * @returns {Object} parsed settings
+ */
+function parseHashSettings( hashParts ) {
+    const settings = {};
+    hashParts.forEach( part => {
+        if ( part.includes( ":" ) ) {
+            const [ key, value ] = part.split( ":" );
+            settings[ key ] = value;
+        }
+    });
+    return settings;
+}
+
+/**
+ * Gets Pokemon slugs from hash parts (excludes settings).
+ * @param {Array} hashParts - array of hash segments split by "+"
+ * @returns {Array} pokemon slugs only
+ */
+function getPokemonFromHash( hashParts ) {
+    return hashParts.filter( part => !part.includes( ":" ) );
+}
 
 // Map game hashes to their available sprite folders
 const GAME_SPRITE_FOLDERS = {
@@ -379,23 +408,30 @@ function populateTeam( container ) {
     // Version filter
     const versionDisabled = currentVersions.length === 0;
     if ( !versionDisabled ) {
-        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, true, false );
+        const versionSetting = hashSettings.version ? hashSettings.version.split( "," ) : null;
+        const versionSelectAll = !versionSetting;
+        const versionSelectedCount = versionSetting ? versionSetting.length : null;
+        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, versionSelectAll, false, versionSelectedCount );
         const both_text = currentVersions.length > 2 ? "All Versions" : "Both Versions";
-        versionDropdown.append( createCheckbox( "version", both_text, "both" ) );
+        versionDropdown.append( createCheckbox( "version", both_text, "both", versionSelectAll || versionSetting?.includes( "both" ) ) );
         gameData[ currentGame ].versions.forEach( version => {
-            versionDropdown.append( createCheckbox( "version", version.name, version.slug ) );
+            versionDropdown.append( createCheckbox( "version", version.name, version.slug, versionSelectAll || versionSetting?.includes( version.slug ) ) );
         });
         if ( gameData[ currentGame ].transfer ) {
-            versionDropdown.append( createCheckbox( "version", "Transfer-Only", "transfer_" + currentGame ) );
+            const transferSlug = "transfer_" + currentGame;
+            versionDropdown.append( createCheckbox( "version", "Transfer-Only", transferSlug, versionSelectAll || versionSetting?.includes( transferSlug ) ) );
         }
     }
     
     // Evolution filter
-    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, true, false );
-    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe" ) );
-    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe" ) );
+    const evolutionSetting = hashSettings.evolution ? hashSettings.evolution.split( "," ) : null;
+    const evolutionSelectAll = !evolutionSetting;
+    const evolutionSelectedCount = evolutionSetting ? evolutionSetting.length : null;
+    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, evolutionSelectAll, false, evolutionSelectedCount );
+    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", evolutionSelectAll || evolutionSetting?.includes( "nfe" ) ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", evolutionSelectAll || evolutionSetting?.includes( "fe" ) ) );
     if ( gameData[ currentGame ].mega ) {
-        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega" ) );
+        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", evolutionSelectAll || evolutionSetting?.includes( "mega" ) ) );
     }
     if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
     
@@ -410,6 +446,13 @@ function populateTeam( container ) {
     // Sprite style selector (only if game has retro sprites available)
     const spriteOptions = getSpriteStyleOptions();
     if ( spriteOptions.length > 1 ) {
+        // Check hash for sprite style setting
+        const hashSpriteStyle = hashSettings.sprites;
+        const validSpriteIds = spriteOptions.map( opt => opt.id );
+        if ( hashSpriteStyle && validSpriteIds.includes( hashSpriteStyle ) ) {
+            currentSpriteStyle = hashSpriteStyle;
+        }
+        
         const spriteContainer = document.createElement( "div" );
         spriteContainer.classList.add( "team__sprite-selector" );
         
@@ -430,6 +473,9 @@ function populateTeam( container ) {
             opt.dataset.isHome = option.isHome;
             opt.dataset.hasShiny = option.hasShiny;
             opt.dataset.hasFemale = option.hasFemale;
+            if ( option.id === currentSpriteStyle ) {
+                opt.selected = true;
+            }
             spriteSelect.append( opt );
         });
         
@@ -449,9 +495,10 @@ function populateTeam( container ) {
  * @param {boolean} inclSelectAll
  * @param {boolean} selectAll
  * @param {boolean} disabled
+ * @param {number|null} selectedCount - number of selected items (for button text)
  * @returns {HTMLOListElement} dropdown
  */
-function createQuickFilter( container, type, name, inclSelectAll = true, selectAll = true, disabled = false ) {
+function createQuickFilter( container, type, name, inclSelectAll = true, selectAll = true, disabled = false, selectedCount = null ) {
     const dropdown = document.createElement( "ol" );
     dropdown.classList.add( "filter__dropdown-menu" );
     if ( inclSelectAll ) dropdown.append( createCheckbox( type, "Select All", "all", selectAll ) );
@@ -469,7 +516,14 @@ function createQuickFilter( container, type, name, inclSelectAll = true, selectA
     button.classList.add( "filter__button" );
     button.id = type + "-filter";
     if ( !disabled ) {
-        button.innerHTML = selectAll ? "All Selected" : "None Selected";
+        // Determine button text based on selection state
+        if ( selectAll ) {
+            button.innerHTML = "All Selected";
+        } else if ( selectedCount !== null && selectedCount > 0 ) {
+            button.innerHTML = selectedCount === 1 ? "1 Selected" : selectedCount + " Selected";
+        } else {
+            button.innerHTML = "None Selected";
+        }
         button.addEventListener( "click", expandDropdown );
         div.classList.add( "filter_enabled" );
     } else {
@@ -753,6 +807,7 @@ function getPokemonRenderUrl( pokemon, gmax = false, options = {} ) {
 function onSpriteStyleChange( event ) {
     currentSpriteStyle = event.target.value;
     refreshAllSprites();
+    updateTeamHash();
 }
 
 /**
@@ -1634,6 +1689,11 @@ function changeCheckbox( event ) {
         }
     }
     filterDex();
+    
+    // Update URL hash for evolution and version filters
+    if ( name === "evolution" || name === "version" ) {
+        updateTeamHash();
+    }
 }
 
 /**
@@ -2050,13 +2110,24 @@ function updateTeamAnalysis() {
 
 /**
  * Reads the hash from the current URL and parses current game and Pokémon.
+ * Also extracts settings (sprites, evolution, version) from hash.
  * @returns {Array} array containing current game, versions, and slugs
  */
  function parseUrl() {
+    // Reset hash settings
+    hashSettings = {};
+    
     // Make sure location is planner and hash exists
     if ( window.location.pathname.split( "/" ).includes( "plan" )
         && window.location.hash ) {
-        let slugs = window.location.hash.substring( 1 ).split( "+" );
+        let hashParts = window.location.hash.substring( 1 ).split( "+" );
+        
+        // Parse settings from hash (e.g., sprites:red-blue, evolution:fe)
+        hashSettings = parseHashSettings( hashParts );
+        
+        // Get only pokemon slugs (exclude settings)
+        let slugs = getPokemonFromHash( hashParts );
+        
         // Check game is valid and not disabled
         if ( slugs[ 0 ] in gameData  ) {
             const game = slugs[ 0 ];
@@ -2064,7 +2135,7 @@ function updateTeamAnalysis() {
                 const versions = gameData[ game ].versions
                     ? gameData[ game ].versions.map( ver => ver.slug )
                     : [];
-                slugs = slugs.slice( 1 );  // Remove hash
+                slugs = slugs.slice( 1 );  // Remove game
                 slugs = idToSlug( slugs );  // Convert IDs (if any) to slugs
                 return [ game, versions, slugs ]
             }
@@ -2074,14 +2145,46 @@ function updateTeamAnalysis() {
 }
 
 /**
- * Updates the URL based on the current Pokémon team.
+ * Updates the URL based on the current Pokémon team and settings.
  */
 function updateTeamHash() {
-    const slugs = [ currentGame ];
+    const parts = [ currentGame ];
+    
+    // Add settings FIRST (sprites, evolution, version) if not default
+    if ( currentSpriteStyle && currentSpriteStyle !== "home" ) {
+        parts.push( "sprites:" + currentSpriteStyle );
+    }
+    
+    // Add evolution setting if not all selected
+    const evolutionCheckboxes = document.querySelectorAll( "input[name='evolution']" );
+    const checkedEvolution = Array.from( evolutionCheckboxes )
+        .filter( cb => cb.checked && cb.value !== "all" )
+        .map( cb => cb.value );
+    const allEvolutionOptions = Array.from( evolutionCheckboxes )
+        .filter( cb => cb.value !== "all" )
+        .map( cb => cb.value );
+    if ( checkedEvolution.length > 0 && checkedEvolution.length < allEvolutionOptions.length ) {
+        parts.push( "evolution:" + checkedEvolution.join( "," ) );
+    }
+    
+    // Add version setting if not all selected (include "both" as a storable value)
+    const versionCheckboxes = document.querySelectorAll( "input[name='version']" );
+    const checkedVersions = Array.from( versionCheckboxes )
+        .filter( cb => cb.checked && cb.value !== "all" )
+        .map( cb => cb.value );
+    const allVersionOptions = Array.from( versionCheckboxes )
+        .filter( cb => cb.value !== "all" )
+        .map( cb => cb.value );
+    if ( checkedVersions.length > 0 && checkedVersions.length < allVersionOptions.length ) {
+        parts.push( "version:" + checkedVersions.join( "," ) );
+    }
+    
+    // Add Pokemon slugs AFTER settings
     document.querySelectorAll( ".slot_populated" ).forEach( li => {
-        slugs.push( li.dataset.slug );
+        parts.push( li.dataset.slug );
     });
-    const hash = slugs.join( "+" );
+    
+    const hash = parts.join( "+" );
     if ( window.history.replaceState ) {
         const url = getCurrentUrl() + "#" + hash;
         window.history.replaceState( url, "", url );
