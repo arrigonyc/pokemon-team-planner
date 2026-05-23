@@ -168,40 +168,32 @@ const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png";
 // Sprite style configuration
 var currentSpriteStyle = "home"; // Default to HOME renders
 
+// URL hash settings (parsed from hash, e.g., sprites:red-blue, evolution:fe)
+var hashSettings = {};
+
 /**
- * Gets URL search params, handling both standard format (?foo=bar#hash) 
- * and hash-first format (#hash?foo=bar).
- * @returns {URLSearchParams}
+ * Parses settings from the URL hash. Settings use format "key:value".
+ * @param {Array} hashParts - array of hash segments split by "+"
+ * @returns {Object} parsed settings
  */
-function getUrlParams() {
-    // First try standard location.search
-    if ( window.location.search ) {
-        return new URLSearchParams( window.location.search );
-    }
-    // Check if query params are embedded in the hash (e.g., #rby?sprites=red-blue)
-    const hash = window.location.hash;
-    const queryIndex = hash.indexOf( "?" );
-    if ( queryIndex !== -1 ) {
-        return new URLSearchParams( hash.substring( queryIndex ) );
-    }
-    return new URLSearchParams();
+function parseHashSettings( hashParts ) {
+    const settings = {};
+    hashParts.forEach( part => {
+        if ( part.includes( ":" ) ) {
+            const [ key, value ] = part.split( ":" );
+            settings[ key ] = value;
+        }
+    });
+    return settings;
 }
 
 /**
- * Gets the sprite style from URL query parameter.
- * @returns {string|null} sprite style or null if not specified
+ * Gets Pokemon slugs from hash parts (excludes settings).
+ * @param {Array} hashParts - array of hash segments split by "+"
+ * @returns {Array} pokemon slugs only
  */
-function getSpriteStyleFromUrl() {
-    return getUrlParams().get( "sprites" );
-}
-
-/**
- * Gets a filter value from URL query parameter.
- * @param {string} filterName - the name of the filter (e.g., "evolution")
- * @returns {string|null} filter value or null if not specified
- */
-function getFilterFromUrl( filterName ) {
-    return getUrlParams().get( filterName );
+function getPokemonFromHash( hashParts ) {
+    return hashParts.filter( part => !part.includes( ":" ) );
 }
 
 // Map game hashes to their available sprite folders
@@ -415,25 +407,28 @@ function populateTeam( container ) {
     // Version filter
     const versionDisabled = currentVersions.length === 0;
     if ( !versionDisabled ) {
-        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, true, false );
+        const versionSetting = hashSettings.version ? hashSettings.version.split( "," ) : null;
+        const versionSelectAll = !versionSetting;
+        const versionDropdown = createQuickFilter( quickFiltersRow, "version", "Version", true, versionSelectAll, false );
         const both_text = currentVersions.length > 2 ? "All Versions" : "Both Versions";
-        versionDropdown.append( createCheckbox( "version", both_text, "both" ) );
+        versionDropdown.append( createCheckbox( "version", both_text, "both", versionSelectAll ) );
         gameData[ currentGame ].versions.forEach( version => {
-            versionDropdown.append( createCheckbox( "version", version.name, version.slug ) );
+            versionDropdown.append( createCheckbox( "version", version.name, version.slug, versionSelectAll || versionSetting?.includes( version.slug ) ) );
         });
         if ( gameData[ currentGame ].transfer ) {
-            versionDropdown.append( createCheckbox( "version", "Transfer-Only", "transfer_" + currentGame ) );
+            const transferSlug = "transfer_" + currentGame;
+            versionDropdown.append( createCheckbox( "version", "Transfer-Only", transferSlug, versionSelectAll || versionSetting?.includes( transferSlug ) ) );
         }
     }
     
     // Evolution filter
-    const evolutionParam = getFilterFromUrl( "evolution" );
-    const evolutionSelectAll = !evolutionParam; // Select all if no URL param
+    const evolutionSetting = hashSettings.evolution ? hashSettings.evolution.split( "," ) : null;
+    const evolutionSelectAll = !evolutionSetting;
     const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, evolutionSelectAll, false );
-    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", evolutionSelectAll || evolutionParam === "nfe" ) );
-    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", evolutionSelectAll || evolutionParam === "fe" ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", evolutionSelectAll || evolutionSetting?.includes( "nfe" ) ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", evolutionSelectAll || evolutionSetting?.includes( "fe" ) ) );
     if ( gameData[ currentGame ].mega ) {
-        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", evolutionSelectAll || evolutionParam === "mega" ) );
+        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", evolutionSelectAll || evolutionSetting?.includes( "mega" ) ) );
     }
     if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
     
@@ -448,11 +443,11 @@ function populateTeam( container ) {
     // Sprite style selector (only if game has retro sprites available)
     const spriteOptions = getSpriteStyleOptions();
     if ( spriteOptions.length > 1 ) {
-        // Check URL for sprite style parameter
-        const urlSpriteStyle = getSpriteStyleFromUrl();
+        // Check hash for sprite style setting
+        const hashSpriteStyle = hashSettings.sprites;
         const validSpriteIds = spriteOptions.map( opt => opt.id );
-        if ( urlSpriteStyle && validSpriteIds.includes( urlSpriteStyle ) ) {
-            currentSpriteStyle = urlSpriteStyle;
+        if ( hashSpriteStyle && validSpriteIds.includes( hashSpriteStyle ) ) {
+            currentSpriteStyle = hashSpriteStyle;
         }
         
         const spriteContainer = document.createElement( "div" );
@@ -801,6 +796,7 @@ function getPokemonRenderUrl( pokemon, gmax = false, options = {} ) {
 function onSpriteStyleChange( event ) {
     currentSpriteStyle = event.target.value;
     refreshAllSprites();
+    updateTeamHash();
 }
 
 /**
@@ -1682,6 +1678,11 @@ function changeCheckbox( event ) {
         }
     }
     filterDex();
+    
+    // Update URL hash for evolution and version filters
+    if ( name === "evolution" || name === "version" ) {
+        updateTeamHash();
+    }
 }
 
 /**
@@ -2098,13 +2099,24 @@ function updateTeamAnalysis() {
 
 /**
  * Reads the hash from the current URL and parses current game and Pokémon.
+ * Also extracts settings (sprites, evolution, version) from hash.
  * @returns {Array} array containing current game, versions, and slugs
  */
  function parseUrl() {
+    // Reset hash settings
+    hashSettings = {};
+    
     // Make sure location is planner and hash exists
     if ( window.location.pathname.split( "/" ).includes( "plan" )
         && window.location.hash ) {
-        let slugs = window.location.hash.substring( 1 ).split( "+" );
+        let hashParts = window.location.hash.substring( 1 ).split( "+" );
+        
+        // Parse settings from hash (e.g., sprites:red-blue, evolution:fe)
+        hashSettings = parseHashSettings( hashParts );
+        
+        // Get only pokemon slugs (exclude settings)
+        let slugs = getPokemonFromHash( hashParts );
+        
         // Check game is valid and not disabled
         if ( slugs[ 0 ] in gameData  ) {
             const game = slugs[ 0 ];
@@ -2112,7 +2124,7 @@ function updateTeamAnalysis() {
                 const versions = gameData[ game ].versions
                     ? gameData[ game ].versions.map( ver => ver.slug )
                     : [];
-                slugs = slugs.slice( 1 );  // Remove hash
+                slugs = slugs.slice( 1 );  // Remove game
                 slugs = idToSlug( slugs );  // Convert IDs (if any) to slugs
                 return [ game, versions, slugs ]
             }
@@ -2122,14 +2134,46 @@ function updateTeamAnalysis() {
 }
 
 /**
- * Updates the URL based on the current Pokémon team.
+ * Updates the URL based on the current Pokémon team and settings.
  */
 function updateTeamHash() {
-    const slugs = [ currentGame ];
+    const parts = [ currentGame ];
+    
+    // Add Pokemon slugs
     document.querySelectorAll( ".slot_populated" ).forEach( li => {
-        slugs.push( li.dataset.slug );
+        parts.push( li.dataset.slug );
     });
-    const hash = slugs.join( "+" );
+    
+    // Add settings (sprites, evolution, version) if not default
+    if ( currentSpriteStyle && currentSpriteStyle !== "home" ) {
+        parts.push( "sprites:" + currentSpriteStyle );
+    }
+    
+    // Add evolution setting if not all selected
+    const evolutionCheckboxes = document.querySelectorAll( "input[name='evolution']" );
+    const checkedEvolution = Array.from( evolutionCheckboxes )
+        .filter( cb => cb.checked && cb.value !== "all" )
+        .map( cb => cb.value );
+    const allEvolutionOptions = Array.from( evolutionCheckboxes )
+        .filter( cb => cb.value !== "all" )
+        .map( cb => cb.value );
+    if ( checkedEvolution.length > 0 && checkedEvolution.length < allEvolutionOptions.length ) {
+        parts.push( "evolution:" + checkedEvolution.join( "," ) );
+    }
+    
+    // Add version setting if not all selected
+    const versionCheckboxes = document.querySelectorAll( "input[name='version']" );
+    const checkedVersions = Array.from( versionCheckboxes )
+        .filter( cb => cb.checked && cb.value !== "all" && cb.value !== "both" )
+        .map( cb => cb.value );
+    const allVersionOptions = Array.from( versionCheckboxes )
+        .filter( cb => cb.value !== "all" && cb.value !== "both" )
+        .map( cb => cb.value );
+    if ( checkedVersions.length > 0 && checkedVersions.length < allVersionOptions.length ) {
+        parts.push( "version:" + checkedVersions.join( "," ) );
+    }
+    
+    const hash = parts.join( "+" );
     if ( window.history.replaceState ) {
         const url = getCurrentUrl() + "#" + hash;
         window.history.replaceState( url, "", url );
