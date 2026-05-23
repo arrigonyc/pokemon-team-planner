@@ -168,6 +168,15 @@ const SV_UNKNOWN_IMG = SV_BASE_IMG + "0000_000.png";
 // Sprite style configuration
 var currentSpriteStyle = "home"; // Default to HOME renders
 
+/**
+ * Gets the sprite style from URL query parameter.
+ * @returns {string|null} sprite style or null if not specified
+ */
+function getSpriteStyleFromUrl() {
+    const params = new URLSearchParams( window.location.search );
+    return params.get( "sprites" );
+}
+
 // Map game hashes to their available sprite folders
 const GAME_SPRITE_FOLDERS = {
     "rby": [ "red-blue", "yellow", "green" ],
@@ -390,14 +399,16 @@ function populateTeam( container ) {
         }
     }
     
-    // Evolution filter
-    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, true, false );
-    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe" ) );
-    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe" ) );
+    // Evolution filter (default to Fully Evolved only)
+    const evolutionDropdown = createQuickFilter( quickFiltersRow, "evolution", "Evolution", true, false, false );
+    evolutionDropdown.append( createCheckbox( "evolution", "Not Fully Evolved", "nfe", false ) );
+    evolutionDropdown.append( createCheckbox( "evolution", "Fully Evolved", "fe", true ) );
     if ( gameData[ currentGame ].mega ) {
-        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega" ) );
+        evolutionDropdown.append( createCheckbox( "evolution", "Mega Evolved", "mega", false ) );
     }
     if ( gameData[ currentGame ].gen > 6 ) evolutionDropdown.classList.add( "filter__dropdown-menu_2col" );
+    // Update button text to reflect "1 Selected"
+    document.querySelector( "#evolution-filter" ).innerHTML = "1 Selected";
     
     // Type filter
     const types = Object.keys( getCurrentTypeData() );
@@ -410,6 +421,13 @@ function populateTeam( container ) {
     // Sprite style selector (only if game has retro sprites available)
     const spriteOptions = getSpriteStyleOptions();
     if ( spriteOptions.length > 1 ) {
+        // Check URL for sprite style parameter
+        const urlSpriteStyle = getSpriteStyleFromUrl();
+        const validSpriteIds = spriteOptions.map( opt => opt.id );
+        if ( urlSpriteStyle && validSpriteIds.includes( urlSpriteStyle ) ) {
+            currentSpriteStyle = urlSpriteStyle;
+        }
+        
         const spriteContainer = document.createElement( "div" );
         spriteContainer.classList.add( "team__sprite-selector" );
         
@@ -430,6 +448,9 @@ function populateTeam( container ) {
             opt.dataset.isHome = option.isHome;
             opt.dataset.hasShiny = option.hasShiny;
             opt.dataset.hasFemale = option.hasFemale;
+            if ( option.id === currentSpriteStyle ) {
+                opt.selected = true;
+            }
             spriteSelect.append( opt );
         });
         
