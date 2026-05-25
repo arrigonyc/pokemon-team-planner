@@ -1005,6 +1005,7 @@ function showTeraPicker( event_or_slug ) {
         bg1.classList.add( "slot__bg-type-1_" + type[ 0 ] );
         bg2.classList.add( "slot__bg-type-2_" + type.slice( -1 ) );
         slot.dataset.tera = "";
+    }
     updateTeamAnalysis();
     updateTeamHash();
 }
