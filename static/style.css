@@ -462,6 +462,48 @@ dt {
     justify-items: center;
     width: 12em;
     padding: 0;
+    position: relative;
+}
+
+/* Drag Handle */
+
+.slot__drag-handle {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    border-radius: 0.25em;
+    padding: 0.15em 0.5em;
+    cursor: grab;
+    font-size: 0.9em;
+    line-height: 1;
+    color: #666;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.slot__drag-handle:hover {
+    background: #e6e6e6;
+    color: #333;
+}
+
+.slot__drag-handle:active {
+    cursor: grabbing;
+}
+
+.slot__drag-handle_hidden {
+    display: none;
+}
+
+.slot_dragging {
+    opacity: 0.5;
+}
+
+.slot_drag-over {
+    outline: 2px dashed #4d6ad8;
+    outline-offset: -2px;
 }
 
 .slot__remove-button,

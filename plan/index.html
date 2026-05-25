@@ -15,7 +15,10 @@
 <body>
 <article class="team-planner">
     <template id="team-slot">
-        <li class="slot slot_empty" data-slug="" data-type="" data-tera="">
+        <li class="slot slot_empty" data-slug="" data-type="" data-tera="" draggable="false">
+            <button class="slot__drag-handle slot__drag-handle_hidden" title="Drag to reorder">
+                <span class="slot__drag-handle-icon">&#9776;</span>
+            </button>
             <div class="slot__remove-button slot__bg-type-1">
                 <figure class="slot__bg-type-2"><img class="slot__pokemon-render" src="../static/js/../img/pokemon/0000_000_uk_n.png" alt=""></figure>
             </div>

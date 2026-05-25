@@ -332,6 +332,9 @@ function populateTeam( container ) {
         }
         ul.append( clone );
     }
+    
+    // Initialize drag-and-drop for team reordering
+    initDragAndDrop( ul );
 
     var buttonContainer = document.createElement( "div" );
     buttonContainer.classList.add( "team__buttons" );
@@ -660,6 +663,11 @@ function populateTeamSlot( event_or_slug ) {
         teraToggle.classList.remove( "slot__toggle_hidden" );
     }
 
+    // Enable drag handle for reordering
+    const dragHandle = slot.querySelector( ".slot__drag-handle" );
+    dragHandle.classList.remove( "slot__drag-handle_hidden" );
+    slot.setAttribute( "draggable", "true" );
+
     const li = document.querySelector( ".pokedex-entry[data-slug='" + slug + "']" );
     if ( li ) {
         li.classList.add( "pokedex-entry_picked" );
@@ -727,6 +735,11 @@ function populateTeamSlot( event_or_slug ) {
     teraToggle.classList.add(
         "slot__toggle_hidden", "slot__toggle_tera_none", "slot__toggle_tera_picked"
     );
+
+    // Hide drag handle and disable dragging
+    const dragHandle = slot.querySelector( ".slot__drag-handle" );
+    dragHandle.classList.add( "slot__drag-handle_hidden" );
+    slot.setAttribute( "draggable", "false" );
 
     // Move to last place
     slot.parentNode.append( slot );
@@ -992,8 +1005,119 @@ function showTeraPicker( event_or_slug ) {
         bg1.classList.add( "slot__bg-type-1_" + type[ 0 ] );
         bg2.classList.add( "slot__bg-type-2_" + type.slice( -1 ) );
         slot.dataset.tera = "";
-        updateTeamAnalysis();
     }
+    updateTeamAnalysis();
+    updateTeamHash();
+}
+
+// Drag and drop state
+var draggedSlot = null;
+
+/**
+ * Initializes drag-and-drop event listeners for team slot reordering.
+ * @param {HTMLElement} teamContainer - the team list container
+ */
+function initDragAndDrop( teamContainer ) {
+    teamContainer.addEventListener( "dragstart", onDragStart );
+    teamContainer.addEventListener( "dragend", onDragEnd );
+    teamContainer.addEventListener( "dragover", onDragOver );
+    teamContainer.addEventListener( "dragleave", onDragLeave );
+    teamContainer.addEventListener( "drop", onDrop );
+}
+
+/**
+ * Handles dragstart event for team slot reordering.
+ * @param {DragEvent} event
+ */
+function onDragStart( event ) {
+    const slot = event.target.closest( ".slot_populated" );
+    if ( !slot ) {
+        event.preventDefault();
+        return;
+    }
+    
+    draggedSlot = slot;
+    slot.classList.add( "slot_dragging" );
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData( "text/plain", slot.dataset.slug );
+}
+
+/**
+ * Handles dragend event for team slot reordering.
+ * @param {DragEvent} event
+ */
+function onDragEnd( event ) {
+    if ( draggedSlot ) {
+        draggedSlot.classList.remove( "slot_dragging" );
+    }
+    draggedSlot = null;
+    
+    // Remove drag-over class from all slots
+    document.querySelectorAll( ".slot_drag-over" ).forEach( slot => {
+        slot.classList.remove( "slot_drag-over" );
+    });
+}
+
+/**
+ * Handles dragover event for team slot reordering.
+ * @param {DragEvent} event
+ */
+function onDragOver( event ) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    
+    const targetSlot = event.target.closest( ".slot_populated" );
+    if ( targetSlot && targetSlot !== draggedSlot ) {
+        // Remove drag-over from other slots
+        document.querySelectorAll( ".slot_drag-over" ).forEach( slot => {
+            if ( slot !== targetSlot ) slot.classList.remove( "slot_drag-over" );
+        });
+        targetSlot.classList.add( "slot_drag-over" );
+    }
+}
+
+/**
+ * Handles dragleave event for team slot reordering.
+ * @param {DragEvent} event
+ */
+function onDragLeave( event ) {
+    const targetSlot = event.target.closest( ".slot" );
+    if ( targetSlot && !targetSlot.contains( event.relatedTarget ) ) {
+        targetSlot.classList.remove( "slot_drag-over" );
+    }
+}
+
+/**
+ * Handles drop event for team slot reordering.
+ * @param {DragEvent} event
+ */
+function onDrop( event ) {
+    event.preventDefault();
+    
+    const targetSlot = event.target.closest( ".slot_populated" );
+    if ( !targetSlot || !draggedSlot || targetSlot === draggedSlot ) {
+        return;
+    }
+    
+    // Get the team list and all populated slots
+    const teamList = draggedSlot.parentNode;
+    const slots = Array.from( teamList.querySelectorAll( ".slot_populated" ) );
+    
+    const draggedIndex = slots.indexOf( draggedSlot );
+    const targetIndex = slots.indexOf( targetSlot );
+    
+    // Reorder: insert dragged slot before or after target
+    if ( draggedIndex < targetIndex ) {
+        targetSlot.after( draggedSlot );
+    } else {
+        targetSlot.before( draggedSlot );
+    }
+    
+    // Clean up
+    targetSlot.classList.remove( "slot_drag-over" );
+    
+    // Update URL hash with new order
+    updateTeamHash();
 }
 
 /**
